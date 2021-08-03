@@ -28,6 +28,8 @@ import stuffr
 import ringbuffer_rf as rb
 import h5py
 
+import matchmatch as mm
+
 WantExit = False        # Used to signal an orderly exit
 
 
@@ -46,10 +48,10 @@ def receive_continuous(u, t0, log, thresh=15.0, pulse_len=15,sample_rate=1000000
     """
     global WantExit
 
-
+    # hold 10000 samples in a ring buffer
     ringb=rb.ringbuffer_raw(N=10000)
 
-    gps_mon=gl.gpsdo_monitor(u, log, exit_on_lost_lock=False)
+    gps_mon=gl.gpsdo_monitor(u, log, exit_on_lost_lock=True)
 
     # it seems that waiting until a few seconds before the sweep start
     # helps to keep the ethernet link "alive" for the start of streaming
@@ -89,6 +91,7 @@ def receive_continuous(u, t0, log, thresh=15.0, pulse_len=15,sample_rate=1000000
     start_idx=[]
     amps=[]
     phases=[]
+
     try:
         while locked and not Exit:
             num_rx_samps=rx_stream.recv(recv_buffer, md, timeout=timeout)
@@ -97,10 +100,11 @@ def receive_continuous(u, t0, log, thresh=15.0, pulse_len=15,sample_rate=1000000
                 log.log("dropped packet. number of received samples is 0")
                 continue
 
-            # the start of the buffer is at this sample index
+            # the start of the incoming buffer is at this sample index
             samples=int(md.time_spec.get_full_secs())*int(sample_rate) + \
                 int(md.time_spec.get_frac_secs()*sample_rate)
 
+            # the number of seconds
             h0=int(np.floor(samples/1000000))
             dirname="./pulses/"+stuffr.sec2dirname(h0)
             
@@ -119,6 +123,7 @@ def receive_continuous(u, t0, log, thresh=15.0, pulse_len=15,sample_rate=1000000
                     phases=[]
                     
                     ho.close()
+                    gps_mon.check()
                 os.system("mkdir -p %s"%(dirname))
                 ho=h5py.File(outfname,"w")
                 
@@ -137,19 +142,18 @@ def receive_continuous(u, t0, log, thresh=15.0, pulse_len=15,sample_rate=1000000
 
             ringb.add(samples,recv_buffer)
 
-            z=ringb.get(samples-363-1,363*2)*32768.0
-            zabs=n.abs(z)
-            on_idx=n.where(n.diff(zabs>thresh) == 1)[0]
-            if len(on_idx) > 0:
-                if on_idx[0] < 363:
-                    
-                    pidx=on_idx[0]
+            # 50 samples before and after buffer
+            z=ringb.get(samples-363-50,363+100)*32768.0
+            pv,pi=mm.detect_pulses(z,thresh=thresh)
+
+
+            for pidx in pi:
+                pidx=int(pidx)
+                if pidx >= 50 and pidx < 363+50:
                     z_mean=n.median(z[pidx:(pidx+pulse_len)])
-                #    print("%d %1.2f %1.2f"%(samples-363+pidx,n.abs(z_mean),n.angle(z_mean)))
-                    start_idx.append(samples-363+pidx)
+                    start_idx.append(samples-363-50+pidx)
                     amps.append(n.abs(z_mean))
                     phases.append(n.angle(z_mean))
-                
             
             Exit = WantExit
             
