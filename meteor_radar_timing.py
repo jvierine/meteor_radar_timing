@@ -92,6 +92,8 @@ def receive_continuous(u, t0, log, thresh=15.0, pulse_len=15,sample_rate=1000000
     amps=[]
     phases=[]
 
+    det=mm.detector(pulse_len=pulse_len,thresh=thresh)
+
     try:
         while locked and not Exit:
             num_rx_samps=rx_stream.recv(recv_buffer, md, timeout=timeout)
@@ -144,13 +146,12 @@ def receive_continuous(u, t0, log, thresh=15.0, pulse_len=15,sample_rate=1000000
 
             # 50 samples before and after buffer
             z=ringb.get(samples-363-50,363+100)*32768.0
-            pv,pi=mm.detect_pulses(z,thresh=thresh)
 
-
+            pv,pi=det.detect_pulses(z)
             for pidx in pi:
                 pidx=int(pidx)
                 if pidx >= 50 and pidx < 363+50:
-                    z_mean=n.median(z[pidx:(pidx+pulse_len)])
+                    z_mean=n.mean(z[pidx:(pidx+pulse_len)])
                     start_idx.append(samples-363-50+pidx)
                     amps.append(n.abs(z_mean))
                     phases.append(n.angle(z_mean))
