@@ -19,7 +19,7 @@ def peak_det(z,thresh=15,min_spacing=300):
     return(peaks,idxs)
 
     
-def detect_pulses(z,pulse_len=13,thresh=15.0,min_spacing=300.0,debug=True):
+def detect_pulses(z,pulse_len=13,thresh=15.0,min_spacing=300.0,debug=False):
     half=n.round(pulse_len/2)
     # square pulse
     w=n.repeat(1.0/pulse_len,int(pulse_len))
