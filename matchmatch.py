@@ -1,8 +1,15 @@
 import numpy as n
 import matplotlib.pyplot as plt
 import h5py
+import scipy.fftpack as fp
 
 import glob
+
+
+def fftconv(a,b,N=None):
+    N=n.max([len(a),len(b)])
+    c=fp.ifft(fp.fft(a,N)*fp.fft(b,N))
+    return(c)
 
 def peak_det(z,thresh=15,min_spacing=300):
     peaks=[]
@@ -19,33 +26,39 @@ def peak_det(z,thresh=15,min_spacing=300):
     return(peaks,idxs)
 
     
-def detect_pulses(z,pulse_len=13,thresh=15.0,min_spacing=300.0,debug=False):
-    half=n.round(pulse_len/2)
+def detect_pulses(z,pulse_len=13,thresh=15.0,min_spacing=300.0,debug=True):
+
     # square pulse
-    w=n.repeat(1.0/pulse_len,int(pulse_len))
+    w=n.array(n.repeat(1.0/pulse_len,int(pulse_len)),dtype=n.float32)
     # difference
-    wd=n.concatenate((n.repeat(1/pulse_len,pulse_len),n.repeat(-1/pulse_len,pulse_len)))
+    wd=n.array(n.concatenate((n.repeat(1/pulse_len,pulse_len),n.repeat(-1/pulse_len,pulse_len))),dtype=n.float32)
     # triangle
-    w2=n.convolve(w,w)
+    w2=n.array(n.convolve(w,w,mode="same"),dtype=n.float32)
 
     # triangle diff
-    wtd=n.convolve(w2,wd)[::-1]
+    wtd=n.array(n.convolve(w,wd)[::-1],dtype=n.float)
+ #   plt.plot(wtd)
+  #  plt.show()
+    
 
     # we expect this to be a triangle
-    zo=n.abs(n.convolve(w,z,mode="same"))
+#    zo=n.abs(n.convolve(w,z,mode="same"))
+    zo=n.roll(n.abs(fftconv(w,z)),-pulse_len)#n.convolve(w,z,mode="same"))
+#    plt.plot(zo)
+#    plt.show()
 
-    triang_diff=n.convolve(wtd,n.convolve(wd,zo,mode="same"),mode="same")
+    #    triang_diff=n.convolve(wtd,n.convolve(wd,zo,mode="same"),mode="same")
+    triang_diff=n.roll(n.real(fftconv(wtd,fftconv(wd,zo))),-int(2.5*pulse_len-1))#n.convolve(wd,zo,mode="same"),mode="same")
     triang_diff[triang_diff<0]=0.0
-
-    # diff triangle
-    diff_match=n.convolve(wd,w)[::-1]
+#    plt.plot(triang_diff)
+#    plt.plot(z.real)
+#    plt.plot(z.imag)
+#    plt.plot(zo)
+#    plt.show()
     
-    zod=n.convolve(diff_match,n.convolve(wd,n.abs(z),mode="same"),mode="same")
-    zod[zod<0]=0.0
-    
-    peaks=(zo+triang_diff+zod)/3.0
+    peaks=(zo+triang_diff)/2.0
     v,idx=peak_det(peaks,thresh=thresh)
-    idx=n.array(idx)-half
+    idx=n.array(idx)
     if debug:
         print(v)
         print(idx)
