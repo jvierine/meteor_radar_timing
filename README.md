@@ -1,4 +1,4 @@
-# Over the air radar pulse metadata logging
+# Over-the-air radar pulse metadata logging
 
 <img src="examples/det.png"/>
 
