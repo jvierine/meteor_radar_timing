@@ -7,9 +7,8 @@ import time
 import glob
 
 
-def fftconv(a,b,N=None):
-    N=n.max([len(a),len(b)])
-    c=fp.ifft(fp.fft(a,N)*fp.fft(b,N))
+def fftconv(A,b,N):
+    c=fp.ifft(A*fp.fft(b,N))
     return(c)
 
 def peak_det(z,thresh=15,min_spacing=300):
@@ -27,7 +26,7 @@ def peak_det(z,thresh=15,min_spacing=300):
     return(peaks,idxs)
 
 class detector:
-    def __init__(self,pulse_len=13,thresh=15.0,min_spacing=300,debug=False):
+    def __init__(self,pulse_len=13,thresh=15.0,min_spacing=300,N=512,debug=False):
         self.pulse_len=pulse_len
         self.thresh=thresh
         self.min_spacing=min_spacing
@@ -40,16 +39,22 @@ class detector:
         self.w2=n.array(n.convolve(self.w,self.w,mode="same"),dtype=n.float32)
         
         # triangle diff
-        self.wtd=n.array(n.convolve(self.w,self.wd)[::-1],dtype=n.float)
+        self.wtd=n.array(n.convolve(self.w,self.wd)[::-1],dtype=n.float32)
+
+        self.N=N
+        self.WTD=fp.fft(self.wtd,self.N)
+        self.WD=fp.fft(self.wd,self.N)
+        self.W=fp.fft(self.w,self.N)
     
 
     def detect_pulses(self,z):#,pulse_len=13,thresh=15.0,min_spacing=300.0,debug=True):
-        zo=n.roll(n.abs(fftconv(self.w,z)),-self.pulse_len)#n.convolve(w,z,mode="same"))
+        zo=n.roll(n.abs(fftconv(self.W,z,self.N)),-self.pulse_len)#n.convolve(w,z,mode="same"))
 
-        triang_diff=n.roll(n.real(fftconv(self.wtd,fftconv(self.wd,zo))),-int(2.5*self.pulse_len-1))#n.convolve(wd,zo,mode="same"),mode="same")
-        triang_diff[triang_diff<0]=0.0
+#        triang_diff=n.roll(n.real(fftconv(self.WTD,fftconv(self.WD,zo,self.N),self.N)),-int(2.5*self.pulse_len-1))#n.convolve(wd,zo,mode="same"),mode="same")
+ #       triang_diff[triang_diff<0]=0.0
     
-        peaks=(zo+triang_diff)/2.0
+  #      peaks=(zo+triang_diff)/2.0
+        peaks=zo#+triang_diff)/2.0
         v,idx=peak_det(peaks,thresh=self.thresh)
         idx=n.array(idx)
         if self.debug:
